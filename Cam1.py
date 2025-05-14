@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from dateutil import parser
+import os
 
 # Step 1: Initialize SQLAlchemy (without app)
 db = SQLAlchemy()
@@ -10,8 +11,8 @@ db = SQLAlchemy()
 def create_app():
     app = Flask(__name__)
 
-    # Replace this with your actual external Render PostgreSQL connection string
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://cmajjari:Ip7O7mC8NGBEy3hXgZP7R09elpD4iBEx@dpg-d0htaoumcj7s739g9r70-a.oregon-postgres.render.com/safari_franklin_one'
+    # Use DATABASE_URL from environment variable (secure on Render)
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
@@ -25,7 +26,7 @@ def create_app():
         captured_at = data.get("captured_at")
 
         if not plate:
-            return jsonify({"error": "Missing 'plate' in request"}), 400
+            return jsonify({"error": "Missing 'plate'"}), 400
 
         new_record = Cam1(lp=plate)
 
@@ -33,7 +34,7 @@ def create_app():
             try:
                 new_record.scan_time = parser.isoparse(captured_at)
             except Exception as e:
-                return jsonify({"error": "Invalid 'captured_at' timestamp"}), 400
+                return jsonify({"error": "Invalid timestamp format"}), 400
 
         db.session.add(new_record)
         db.session.commit()
@@ -42,7 +43,7 @@ def create_app():
 
     return app
 
-# Step 3: Define the table
+# Step 3: Define the table model
 class Cam1(db.Model):
     __tablename__ = 'Cam1'
     id = db.Column(db.Integer, primary_key=True)
@@ -52,10 +53,8 @@ class Cam1(db.Model):
     def __repr__(self):
         return f"<Cam1 {self.lp} at {self.scan_time}>"
 
-# Step 4: Run for table creation
-if __name__ == "__main__":
-    app = create_app()
-    with app.app_context():
-        db.create_all()
-        print("✅ Table 'Cam1' created and webhook is ready.")
-        app.run(debug=True)  # Optional: runs the server if you want to test locally
+# Step 4: Run table creation on startup
+app = create_app()
+with app.app_context():
+    db.create_all()
+    print("✅ Table 'Cam1' created.")
